@@ -1,0 +1,116 @@
+import pandas as pd
+import numpy as np
+from sklearn.decomposition import PCA
+from sklearn.linear_model import LogisticRegressionCV#交叉验证
+from sklearn import metrics#模型评估方法
+from sklearn.model_selection import train_test_split
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import PolynomialFeatures
+
+
+def extend(a, b):
+    return 1.05*a-0.05*b, 1.05*b-0.05*a
+
+
+if __name__ == '__main__':
+    pd.set_option('display.width', 200)#设置看到的数据为200
+    data = pd.read_csv('iris.data', header=None)
+    columns = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width', 'type']
+    # rename：重命名，就是对col进行命名的修改，他只改变col的名字，相当于起了个别名，原来叫a，以后叫b
+    # reindex：重新索引，他可以修改还列的索引关系以及index‘行的索引关系
+    #zip() 函数用于将可迭代的对象作为参数，将对象中对应的元素打包成一个个元组，然后返回由这些元组组成的列表。
+    data.rename(columns=dict(zip(np.arange(5), columns)), inplace=True)#  # 映射函数方式来构造字典
+    data['type'] = pd.Categorical(data['type']).codes
+    print data.head(5)
+    #loc 通过行索引（index）获取行 iloc 则是通过行号对行进行索引
+    x = data.loc[:, columns[:-1]]#索引列
+    y = data['type']
+
+
+##                 scikit-learn中PCA的使用方法
+    # sklearn.decomposition.PCA(n_components=None, copy=True, whiten=False)
+    #n_components:  
+# 意义：PCA算法中所要保留的主成分个数n，也即保留下来的特征个数n
+    # # 类型：int 或者 string，缺省时默认为None，所有成分被保留。
+    # #           赋值为int，比如n_components=1，将把原始数据降到一个维度。
+    # #           赋值为string，比如n_components='mle'，将自动选取特征个数n，使得满足所要求的方差百分比。
+    # copy:
+    # 类型：bool，True或者False，缺省时默认为True。
+    # 意义：表示是否在运行算法时，将原始训练数据复制一份。若为True，则运行PCA算法后，原始训练数据的值不会有任何改变，因为是在原始数据的副本上进行运算；若为False，则运行PCA算法后，原始训练数据的值会改，因为是在原始数据上进行降维计算。
+    # whiten:
+    # 类型：bool，缺省时默认为False
+    # 意义：白化，使得每个特征具有相同的方差。
+
+    pca = PCA(n_components=2, whiten=True, random_state=0)
+    x = pca.fit_transform(x)
+    print '各方向方差：', pca.explained_variance_
+    print '方差所占比例：', pca.explained_variance_ratio_
+    print x[:5]
+    cm_light = mpl.colors.ListedColormap(['#77E0A0', '#FF8080', '#A0A0FF'])
+    cm_dark = mpl.colors.ListedColormap(['g', 'r', 'b'])
+    mpl.rcParams['font.sans-serif'] = u'SimHei'
+    mpl.rcParams['axes.unicode_minus'] = False
+    plt.figure(facecolor='w')
+    plt.scatter(x[:, 0], x[:, 1], s=30, c=y, marker='o', cmap=cm_dark)#c=y用y的值表示颜色
+    plt.grid(b=True, ls=':')
+    plt.xlabel(u'组份1', fontsize=14)
+    plt.ylabel(u'组份2', fontsize=14)
+    plt.title(u'鸢尾花数据PCA降维', fontsize=18)
+    # plt.savefig('1.png')
+    plt.show()
+
+    x, x_test, y, y_test = train_test_split(x, y, train_size=0.7)#skilearn模块随机将数据分为测试集和训练集
+
+    # 使用sklearn.preprocessing.PolynomialFeatures来进行特征的构造。
+    # 它是使用多项式的方法来进行的，如果有a，b两个特征，那么它的2次多项式为（1, a, b, a ^ 2, ab, b ^ 2）。
+    # PolynomialFeatures有三个参数
+    # degree：控制多项式的度
+    # interaction_only： 默认为False，如果指定为True，那么就不会有特征自己和自己结合的项，上面的二次项中没有a ^ 2和b ^ 2。
+    # include_bias：默认为True。如果为True的话，那么就会有上面的1那一项。
+
+#LogisticRegressionCV（Cs = 10，fit_intercept = True，cv ='warn'，dual = False，penalty ='l2'，scoring = None，solver ='lbfgs'，tol = 0.0001，max_iter = 100，class_weight = None，n_jobs =无，verbose = 0，refit = True，intercept_scaling = 1.0，multi_class ='warn'，random_state = None，l1_ratios =无）
+    # Cs ： 浮点数列表或int，可选（默认值 = 10）
+    # Cs中的每个值描述正则化强度的倒数。如果Cs为int，则以1e - 4
+    # 和1e4之间的对数标度选择Cs值网格。与支持向量机一样，较小的值指定更强的正则化。
+    # fit_intercept ： bool，optional（默认 = True）
+    # 指定是否应将常量（也称为偏差或截距）添加到决策函数中。
+    # cv ： int或交叉验证生成器，可选（默认 = 无）
+    # 使用的默认交叉验证生成器是分层K - Folds。如果提供了整数，则它是使用的折叠数
+    model = Pipeline([
+        ('poly', PolynomialFeatures(degree=2, include_bias=True)),
+        ('lr', LogisticRegressionCV(Cs=np.logspace(-3, 4, 8), cv=5, fit_intercept=False))
+    ])
+    model.fit(x, y)
+    print '最优参数：', model.get_params('lr')['lr'].C_#.c_才能求出参数
+    y_hat = model.predict(x)
+    print '训练集精确度：', metrics.accuracy_score(y, y_hat)
+    y_test_hat = model.predict(x_test)
+    print '测试集精确度：', metrics.accuracy_score(y_test, y_test_hat)
+
+    N, M = 500, 500     # 横纵各采样多少个值
+    x1_min, x1_max = extend(x[:, 0].min(), x[:, 0].max())   # 第0列的范围
+    x2_min, x2_max = extend(x[:, 1].min(), x[:, 1].max())   # 第1列的范围
+    t1 = np.linspace(x1_min, x1_max, N)
+    t2 = np.linspace(x2_min, x2_max, M)
+    x1, x2 = np.meshgrid(t1, t2)                    # 生成网格采样点
+    x_show = np.stack((x1.flat, x2.flat), axis=1)   # 测试点
+    y_hat = model.predict(x_show)  # 预测值
+    y_hat = y_hat.reshape(x1.shape)  # 使之与输入的形状相同
+    plt.figure(facecolor='w')
+    plt.pcolormesh(x1, x2, y_hat, cmap=cm_light)  # 预测值的显示
+    plt.scatter(x[:, 0], x[:, 1], s=30, c=y, edgecolors='k', cmap=cm_dark)  # 样本的显示
+    plt.xlabel(u'组份1', fontsize=14)
+    plt.ylabel(u'组份2', fontsize=14)
+    plt.xlim(x1_min, x1_max)
+    plt.ylim(x2_min, x2_max)
+    plt.grid(b=True, ls=':')
+    patchs = [mpatches.Patch(color='#77E0A0', label='Iris-setosa'),
+              mpatches.Patch(color='#FF8080', label='Iris-versicolor'),
+              mpatches.Patch(color='#A0A0FF', label='Iris-virginica')]
+    plt.legend(handles=patchs, fancybox=True, framealpha=0.8, loc='lower right')
+    plt.title(u'鸢尾花Logistic回归分类效果', fontsize=17)
+    # plt.savefig('2.png')
+    plt.show()
