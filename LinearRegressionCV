@@ -1,0 +1,65 @@
+#!/usr/bin/python
+# -*- coding:utf-8 -*-
+
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import Lasso, Ridge
+from sklearn.model_selection import GridSearchCV
+
+
+if __name__ == "__main__":
+    # pandas读入
+    data = pd.read_csv('Advertising.csv')    # TV、Radio、Newspaper、Sales
+    x = data[['TV', 'Radio', 'Newspaper']]
+    # x = data[['TV', 'Radio']]
+    y = data['Sales']
+    print x
+    print y
+
+    x_train, x_test, y_train, y_test = train_test_split(x, y, random_state=1)
+    # model = Lasso()
+    model = Ridge()#脊回归就是在线性回归基础上加入L2正则化
+    alpha_can = np.logspace(-3, 2, 10)
+    np.set_printoptions(suppress=True)
+    print 'alpha_can = ', alpha_can
+
+    #GridSearchCV，它存在的意义就是自动调参，只要把参数输进去，就能给出最优化的结果和参数。
+    # 但是这个方法适合于小数据集，一旦数据的量级上去了，很难得出结果。这个时候就是需要动脑筋了。
+    # 数据量比较大的时候可以使用一个快速调优的方法——坐标下降。
+    # 它其实是一种贪心算法：拿当前对模型影响最大的参数调优，直到最优化；再拿下一个影响最大的参数调优，如此下去，直到所有的参数调整完毕。
+    # 这个方法的缺点就是可能会调到局部最优而不是全局最优，但是省时间省力，巨大的优势面前，还是试一试吧，后续可以再拿bagging再优化。
+    #class sklearn.model_selection.GridSearchCV(estimator, param_grid, scoring=None, fit_params=None, n_jobs=1, iid=True, refit=True, cv=None, verbose=0, pre_dispatch=‘2 * n_jobs’, error_score=’raise’, return_train_score =’warn’)
+    # （1）       estimator
+    # 选择使用的分类器，并且传入除需要确定最佳的参数之外的其他参数。每一个分类器都需要一个scoring参数，或者score方法：如estimator = RandomForestClassifier(min_samples_split=100, min_samples_leaf=20, max_depth=8, max_features='sqrt', random_state=10),
+    # （2）       param_grid
+    # 需要最优化的参数的取值，值为字典或者列表，例如：param_grid = param_test1，param_test1 = {'n_estimators': range(10, 71, 10)}。
+    # （3）       scoring = None
+    # 模型评价标准，默认None, 这时需要使用score函数；或者如scoring = 'roc_auc'，根据所选模型不同，评价准则不同。字符串（函数名），或是可调用对象，需要其函数签名形如：scorer(estimator, X,y)；如果是None，则使用estimator的误差估计函数
+    # （8）        cv = None
+    # 交叉验证参数，默认None，使用三折交叉验证。指定fold数量，默认为3，也可以是yield训练 / 测试数据的生成器。
+    lasso_model = GridSearchCV(model, param_grid={'alpha': alpha_can}, cv=5)
+    lasso_model.fit(x_train, y_train)
+    print '超参数：\n', lasso_model.best_params_
+
+    order = y_test.argsort(axis=0)
+    y_test = y_test.values[order]
+    x_test = x_test.values[order, :]
+    y_hat = lasso_model.predict(x_test)
+    print lasso_model.score(x_test, y_test)
+    mse = np.average((y_hat - np.array(y_test)) ** 2)  # Mean Squared Error
+    rmse = np.sqrt(mse)  # Root Mean Squared Error
+    print mse, rmse
+
+    t = np.arange(len(x_test))
+    mpl.rcParams['font.sans-serif'] = [u'simHei']
+    mpl.rcParams['axes.unicode_minus'] = False
+    plt.figure(facecolor='w')
+    plt.plot(t, y_test, 'r-', linewidth=2, label=u'真实数据')
+    plt.plot(t, y_hat, 'g-', linewidth=2, label=u'预测数据')
+    plt.title(u'线性回归预测销量', fontsize=18)
+    plt.legend(loc='upper right')
+    plt.grid()
+    plt.show()
